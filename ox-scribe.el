@@ -80,14 +80,14 @@ The default function simply returns the value of CONTENTS."
                    (:scribe-period "PERIOD" nil nil t)
                    (:scribe-lector "LECTOR" nil nil t))
     :menu-entry
-    '(?l 1
-         ((?r "As LaTeX buffer (Scribe)" org-scribe-export-as-latex)
-          (?R "As LaTeX file (Scribe)" org-latex-export-to-latex)
-          (?S "As PDF file (Scribe)" org-latex-export-to-pdf)
-          (?s "As PDF file and open (Scribe)"
+    '(?s "Export to Scribe (LaTeX)"
+         ((?l "As LaTeX buffer (Scribe)" org-scribe-export-as-latex)
+          (?L "As LaTeX file (Scribe)" org-scribe-export-to-latex)
+          (?P "As PDF file (Scribe)" org-scribe-export-to-pdf)
+          (?o "As PDF file and open (Scribe)"
               (lambda (a s v b)
-                (if a (org-latex-export-to-pdf t s v b)
-                  (org-open-file (org-latex-export-to-pdf nil s v b))))))))
+                (if a (org-scribe-export-to-pdf t s v b)
+                  (org-open-file (org-scribe-export-to-pdf nil s v b))))))))
 
 
 
