@@ -105,7 +105,7 @@ The default function simply returns the value of CONTENTS."
 ;; Template used is simular to the one used in `latex' back-end,
 ;; with the addition of the extra properties for a scribe document.
 
-(defun org-latex-template (contents info)
+(defun org-scribe-template (contents info)
   "Return complete document string after LaTeX scribe conversion.
 CONTENTS is the transcoded contents string.  INFO is a plist
 holding export options."
@@ -266,7 +266,7 @@ file-local settings."
 
 
 ;;;###autoload
-(defun org-latex-export-to-pdf
+(defun org-scribe-export-to-pdf
   (&optional async subtreep visible-only body-only ext-plist)
   "Export current buffer to LaTeX then process through to PDF.
 
