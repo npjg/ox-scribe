@@ -1,0 +1,16 @@
+#+TITLE: ox-scribe
+#+AUTHOR: Nathanael Gentry
+
+* =ox-scribe.el=
+Per [[https://emacs.stackexchange.com/questions/52530/semantic-way-to-export-org-subtrees-inside-arbitrary-latex-environments/52538#52538][my quest to make LaTeX environments more semantic]] inside Org, here's a
+quick export backend that links to my favored scribe class. This LaTeX class is
+included with the repository.
+
+This backend inherits much of its functionality from =ox-latex.el=.
+
+** Distinctives
+Right now, any text block enclosed within a drawer whose name is a registered
+environment is wrapped inside that environment on export. A =:proof:= drawer
+becomes a =proof= environment. This isn't truly ideal; I would like the more
+flexible tag-based implementation that I mention in the question -- and that the
+Beamer export backend uses.
