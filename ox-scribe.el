@@ -76,7 +76,7 @@ The default function simply returns the value of CONTENTS."
                    (:latex-format-drawer-function nil nil org-scribe-format-drawer-function)
                    (:scribe-course "COURSE" nil nil t)
                    (:scribe-term "TERM" nil nil t)
-                   (:scribe-type "TYPE" nil "Lecture" t)
+                   (:scribe-type "TYPE" nil org-scribe-type t)
                    (:scribe-period "PERIOD" nil nil t)
                    (:scribe-lector "LECTOR" nil nil t))
     :menu-entry
