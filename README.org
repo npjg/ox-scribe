@@ -1,4 +1,3 @@
-#+TITLE: ox-scribe
 #+AUTHOR: Nathanael Gentry
 
 * =ox-scribe.el=
@@ -9,8 +8,36 @@ included with the repository.
 This backend inherits much of its functionality from =ox-latex.el=.
 
 ** Distinctives
-Right now, any text block enclosed within a drawer whose name is a registered
-environment is wrapped inside that environment on export. A =:proof:= drawer
-becomes a =proof= environment. This isn't truly ideal; I would like the more
-flexible tag-based implementation that I mention in the question -- and that the
-Beamer export backend uses.
+Beamer allows headlines to be specified as environments, and I am implementing a
+similar system for common scribe-like environments.
+
+For instance, consider the following Org document.
+#+begin_src org
+  ,* Cosets
+  ,** Lagrange's Theorem                                            :S_theorem:
+  :PROPERTIES:
+  :SCRIBE_env: theorem
+  :END:
+  If $G$ is a finite group and $H$ is a subgroup of $G$, then $|H|\mid|G|$.
+  ,** Proof                                                           :S_proof:
+  :PROPERTIES:
+  :SCRIBE_env: proof
+  :END:
+
+  Let $a_1H, a_2H, \cdots, a_rH$ denote the left cosets of $H$ in $G$...
+#+end_src
+
+In an =ox-scribe= export, this produces the following LateX:
+#+begin_src latex
+  \section{Cosets}
+  \begin{theorem}[Lagrange's Theorem]
+    If $G$ is a finite group and $H$ is a subgroup of $G$, then $|H|\mid|G|$.
+  \end{theorem}
+  \begin{proof}[Proof]
+    Let $a_1H, a_2H, \cdots, a_rH$ denote the left cosets of $H$ in $G$...
+  \end{proof}
+#+end_src
+
+** Functionality
+This package provides a minor mode for keeping properties and tags synchronized,
+just like the minor mode provided with Beamer.
