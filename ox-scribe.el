@@ -52,28 +52,79 @@
   :group 'org-export-scribe
   :type '(string :tag "Default talk type"))
 
-(defcustom org-scribe-format-drawer-function 'org-scribe-format-drawer
-  "Function called to format a drawer in a LaTeX scribe document.
+(defcustom org-scribe-environments-extra nil
+  "Environments triggered by tags in Org export.
+Each entry has 4 elements:
 
-The function must accept two parameters:
-  NAME      the drawer name, like \"LOGBOOK\"
-  CONTENTS  the contents of the drawer.
-
-The function should return the string to be exported.
-
-The default function simply returns the value of CONTENTS."
+name    Name of the environment
+key     Selection key for `org-scribe-select-environment'
+open    The opening template for the environment, with the following escapes
+        %a   the action/overlay specification
+        %A   the default action/overlay specification
+        %R   the raw SCRIBE_act value
+        %o   the options argument, with square brackets
+        %O   the raw SCRIBE_opt value
+        %h   the headline text
+        %r   the raw headline text (i.e. without any processing)
+        %H   if there is headline text, that raw text in {} braces
+        %U   if there is headline text, that raw text in [] brackets
+close   The closing string of the environment."
   :group 'org-export-scribe
-  :version "0.81"
+  :version "0.71"
+  :type '(repeat
+	  (list
+	   (string :tag "Environment")
+	   (string :tag "Selection key")
+	   (string :tag "Begin")
+	   (string :tag "End"))))
+
+(defconst org-scribe-environments-default
+  '(("verse"          "v" "\\begin{verse}%a %% %h"        "\\end{verse}")
+    ("quotation"      "q" "\\begin{quotation}%a %% %h"    "\\end{quotation}")
+    ("quote"          "Q" "\\begin{quote}%a %% %h"        "\\end{quote}")
+    ("theorem"        "t" "\\begin{theorem}%a[%h]"        "\\end{theorem}")
+    ("definition"     "d" "\\begin{definition}%a[%h]"     "\\end{definition}")
+    ("example"        "e" "\\begin{example}%a[%h]"        "\\end{example}")
+    ("proof"          "p" "\\begin{proof}%a[%h]"          "\\end{proof}"))
+  "Environments triggered by properties in Scribe export.
+These are the defaults - for user definitions, see
+`org-scribe-environments-extra'.")
+
+(defcustom org-scribe-format-headline-function 'org-scribe-format-headline-default-function
+  "Function for formatting the headline's text.
+
+This function will be called with six arguments:
+TODO      the todo keyword (string or nil)
+TODO-TYPE the type of todo (symbol: `todo', `done', nil)
+PRIORITY  the priority of the headline (integer or nil)
+TEXT      the main headline text (string)
+TAGS      the tags (list of strings or nil)
+INFO      the export options (plist)
+
+The function result will be used in the section format string."
+  :group 'org-export-scribe
+  :version "24.4"
+  :package-version '(Org . "8.0")
   :type 'function)
 
 
+;;; Internal variables.
+
+(defconst org-scribe-environments-special
+  '(("theorem"     "t"))
+  "Alist of environments treated in a special way by the back-end.
+Keys are environment names, as strings, values are bindings used
+in `org-scribe-select-environment'.  Environments listed here,
+along with their binding, are hard coded and cannot be modified
+through `org-scribe-environments-extra' variable.")
 
 ;;; Define Back-End
 
 (org-export-define-derived-backend 'scribe 'latex
   :translate-alist '((template . org-scribe-template))
   :options-alist '((:latex-class "LATEX_CLASS" nil "scribe" t)
-                   (:latex-format-drawer-function nil nil org-scribe-format-drawer-function)
+                   (:latex-format-headline-function nil nil org-scribe-format-headline-function)
+                   (:scribe-environments-extra nil nil org-scribe-environments-extra)
                    (:scribe-course "COURSE" nil nil t)
                    (:scribe-term "TERM" nil nil t)
                    (:scribe-type "TYPE" nil org-scribe-type t)
@@ -93,10 +144,19 @@ The default function simply returns the value of CONTENTS."
 
 ;;;; Transcoders
 
-;;; Drawer
+;;; Headline
 
-(defun org-scribe-format-drawer (name contents)
-  (format "\\begin{%s}\n%s\n\\end{%s}" name contents name))
+(defun org-scribe-format-headline-default-function
+    (todo _todo-type priority text tags _info)
+  "Default format function for a headline.
+See `org-scribe-format-headline-function' for details."
+  (concat
+   (and todo (format "{\\bfseries\\sffamily %s} " todo))
+   (and priority (format "\\framebox{\\#%c} " priority))
+   text
+   (and (let ((tags (cl-remove-if (lambda (x) (string-match "^S_" x)) tags)))
+          (format "\\hfill{}\\textsc{%s}"
+            (mapconcat #'org-latex--protect-text tags ":"))))))
 
 
 
@@ -185,6 +245,57 @@ holding export options."
     (concat (plist-get info :creator) "\n"))
      ;; Document end.
      "\\end{document}")))
+
+
+;;; Minor Mode
+
+
+(defvar org-scribe-mode-map (make-sparse-keymap)
+  "The keymap for `org-scribe-mode'.")
+(define-key org-scribe-mode-map "\C-c\C-b" 'org-scribe-select-environment)
+
+;;;###autoload
+(define-minor-mode org-scribe-mode
+  "Support for editing scribe-oriented Org files."
+  nil " Sc" 'org-scribe-mode-map)
+
+(when (fboundp 'font-lock-add-keywords)
+  (font-lock-add-keywords
+   'org-mode
+   '((":\\S_[a-z]+\\:" 1 'org-scribe-tag prepend))
+   'prepend))
+
+(defface org-scribe-tag '((t (:box (:line-width 1 :color grey40))))
+  "The special face for scribe tags."
+  :group 'org-export-scribe)
+
+(defun org-scribe-property-changed (property value)
+  "Track the SCRIBE_env property with tags.
+PROPERTY is the name of the modified property.  VALUE is its new
+value."
+  (cond
+   ((equal property "SCRIBE_env")
+    (save-excursion
+      (org-back-to-heading t)
+      ;; Filter out Scribe-related tags and install environment tag.
+      (let ((tags (cl-remove-if (lambda (x) (string-match "^S_" x))
+				(org-get-tags nil t)))
+	    (env-tag (and (org-string-nw-p value) (concat "S_" value))))
+	(org-set-tags (if env-tag (cons env-tag tags) tags))
+	(when env-tag (org-toggle-tag env-tag 'on)))))))
+
+(add-hook 'org-property-changed-functions 'org-scribe-property-changed)
+
+(defun org-scribe-allowed-property-values (property)
+  "Supply allowed values for PROPERTY."
+  (cond
+   ((and (equal property "SCRIBE_env")
+	 (not (org-entry-get nil (concat property "_ALL") 'inherit)))
+    ;; If no allowed values for SCRIBE_env have been defined,
+    ;; supply all defined environments
+    (mapcar 'car (append org-scribe-environments-special
+			 org-scribe-environments-extra
+			 org-scribe-environments-default)))))
 
 
 ;;; End-user functions
@@ -299,6 +410,42 @@ Return PDF file's name."
     (org-export-to-file 'scribe outfile
       async subtreep visible-only body-only ext-plist
       (lambda (file) (org-latex-compile file)))))
+
+;;;###autoload
+(defun org-scribe-select-environment ()
+  "Select the environment to be used by scribe for this entry.
+While this uses (for convenience) a tag selection interface, the
+result of this command will be that the SCRIBE_env *property* of
+the entry is set.
+
+In addition to this, the command will also set a tag as a visual
+aid, but the tag does not have any semantic meaning."
+  (interactive)
+  ;; Make sure `org-scribe-environments-special' has a higher
+  ;; priority than `org-scribe-environments-extra'.
+  (let* ((envs (append org-scribe-environments-special
+		       org-scribe-environments-extra
+		       org-scribe-environments-default))
+	 (org-current-tag-alist
+	  (append '((:startgroup))
+		  (mapcar (lambda (e) (cons (concat "S_" (car e))
+				       (string-to-char (nth 1 e))))
+			  envs)
+		  '((:endgroup))))
+	 (org-tag-persistent-alist nil)
+	 (org-use-fast-tag-selection t)
+	 (org-fast-tag-selection-single-key t))
+    (org-set-tags-command)
+    (let ((tags (org-get-tags nil t)))
+      (cond
+       ((let* ((tags-re (concat "S_" (regexp-opt (mapcar #'car envs) t)))
+	       (env (cl-some (lambda (tag)
+			       (and (string-match tags-re tag)
+				    (match-string 1 tag)))
+			     tags)))
+	  (and env (progn (org-entry-put nil "SCRIBE_env" env) t))))
+       (t (org-entry-delete nil "SCRIBE_env"))))))
+
 
 (provide 'ox-scribe)
 (require 'ox-scribe)
